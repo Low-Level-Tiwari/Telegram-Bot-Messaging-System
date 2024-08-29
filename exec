@@ -1,0 +1,6 @@
+# Compiling
+cc -c prog.c -I  /usr/local/include/ 
+
+# Linking
+cc -o execute  prog.o -L /usr/local/lib/ -lpq
+

@@ -1,0 +1,105 @@
+#!/bin/bash
+
+URL=https://api.telegram.org/bot7189343649:AAHr8rMGgDQF6bCHLe0VrVs73kxwfJVV_mI
+FILE_URL=https://api.telegram.org/file/bot7189343649:AAHr8rMGgDQF6bCHLe0VrVs73kxwfJVV_mI
+PSQL="psql -U postgres -d site -c "
+
+getfile()
+{
+	id=$(grep -o '"file_id":"[a-zA-Z0-9_\-]*"' response|head -n 1|sed 's/"//g'|cut -d: -f2);
+	if [ -z $id ];
+	then
+		true;
+	else
+		wget -q -T 10 --post-data="file_id=$id" $URL/getFile
+		if test -f getFile;
+		then 
+			path=$(cat getFile | grep -o '"file_path":".*"'| sed 's/"//g' | cut -d: -f2);
+			wget -q -T 10 $FILE_URL/$path;
+			rm -f getFile 
+		fi
+	fi
+}
+
+fetch()
+{
+	wget -q -T 8 $URL/getUpdates?offset=$(cat offset) -O $1;
+}
+
+parse()
+{
+	grep -o '"from":{"id":[0-9]*' $1|cut -d: -f3 > id; 
+	grep -o '"username":"[a-zA-Z0-9_]*","lang' $1|cut -d: -f2 |cut -d, -f1|sed 's/"//g' > names; 
+	grep -o '"text":[a-zA-Z0-9"/ !,@=#$%\^\&\*\(\)_+-]*}}' $1|sed -n 's/"text":\|"//gp' | sed -n 's/}}//p' > com;
+	grep -o '"update_id":[0-9]*' $1| cut -d':' -f2 | sort -rn | head -n1 > offset;
+	paste -d: id names com > todo;
+	sed -i 's/\\u00a0/ /g' todo;
+}
+
+sendOTP()
+{
+	query="select response from comm where command='createsession'";
+	psql -U postgres -d site -c "$query" --csv -o tmp1;
+	sed -i '1d' tmp1;
+	cat tmp1 | sed -nE "s;^(.*)~(.*)$;wget -q -T 8 --post-data=\"chat_id=\1\&text=\2\" $URL/sendMessage;p" | sh; 
+	query="delete from comm where response='\1' and command='createsession'";
+	cat tmp1 | sed "s/^(.*)$/$PSQL \"$query\";p" | sh;
+}
+
+
+tg_send()
+{
+	query="select u.users_tg_id,c.content from sendjob u, messages c where u.status=false and u.uuid=c.uuid";
+	psql -U postgres -d site -c "$query" --csv -o tmp1;
+	sed -i '1d' tmp1;
+	cat tmp1 | sed -nE "s;^(.*),(.*)$;wget -q -T 8 --post-data=\"chat_id=\1\&text=\2\" $URL/sendMessage;p" | sh; 
+	query="delete from sendjob where status=false";
+	psql -U postgres -d site -c "$query";
+}
+
+
+setresponse()
+{
+	query="select JOBS_TG_ID,response from jobs where status=false";
+	psql -U postgres -d site -c "$query" --csv -o tmp1;
+	sed -i '1d' tmp1;
+	cat tmp1 | sed -nE "s;^(.*),(.*)$;wget -q -T 8 --post-data=\"chat_id=\1\&text=\2\" $URL/sendMessage;p" | sh; 
+	query="delete from jobs where status=false";
+	psql -U postgres -d site -c "$query";
+}
+
+cleanup()
+{
+	rm -f id com todo sendMessage* execute k id names com tmp tmp1;
+}
+
+
+# Fetch updates from Telegram Server
+fetch response
+
+# Parse the JSON returned from telegram server
+parse response
+
+getfile 
+
+if [ $? -eq 0 ]
+then
+	diff response empty > k;
+	if [ $? -eq 0 ] 
+	then
+		echo "No Updates"
+	else
+		# Update the offset
+		expr $(cat offset) + 1 > offset;
+
+		# Perform Actions
+		sendOTP
+		tg_send
+	fi
+else
+	echo "error"
+fi
+
+# Clean up
+cleanup
+

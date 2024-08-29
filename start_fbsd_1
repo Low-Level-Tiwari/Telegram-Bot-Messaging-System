@@ -1,0 +1,2 @@
+#!/bin/bash
+qemu-system-x86_64 -no-reboot -m 4096 -drive if=virtio,file=uploader_fbsd,format=qcow2 -netdev user,id=mynet0,hostfwd=tcp:0.0.0.0:9912-:22,hostfwd=tcp:0.0.0.0:9990-:80  -device virtio-net,netdev=mynet0   -smp 2 -display none -daemonize 
