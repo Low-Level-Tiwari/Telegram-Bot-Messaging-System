@@ -1,9 +1,13 @@
 
-# Telegram Bot Messaging System
+# Telegram Bot Messaging System in C
 
 ## Overview
 
 The **Telegram Bot Messaging System** connects a Telegram bot with a backend managed by a bash script. The bash script sends requests to the Telegram server and receives HTTP responses, which are then parsed and inserted into a **PostgreSQL** table. This table has triggers that manage routing and processing based on the inserted data. The PostgreSQL database handles all required actions, writes a status code, and the bash script reads this status to determine whether the action succeeded or failed.
+
+
+##Technologies: C, Bash, PL/PGSQL
+
 
 ### **Use of Psql Database as Web Server**
 
